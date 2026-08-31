@@ -1,0 +1,3 @@
+{
+  "extends": "@web-stack-template/config/tsconfig.base.json"
+}
