@@ -55,10 +55,10 @@ const getRawMessages = (body: unknown): unknown => {
   return body.messages;
 };
 
-const prepareAiRequest = (request: Request) =>
+const prepareAiRequest = Effect.fn("Server.prepareAiRequest")((request: Request) =>
   Effect.gen(function* () {
     const body = yield* Effect.tryPromise({
-      try: () => request.json() as Promise<unknown>,
+      try: () => request.json(),
       catch: (cause) => new AiRequestError({ cause, operation: "parse" }),
     });
     const uiMessages = yield* Effect.tryPromise({
@@ -79,6 +79,27 @@ const prepareAiRequest = (request: Request) =>
     });
 
     return { messages, model };
+  }),
+);
+
+const createAiResponse = (
+  input: {
+    readonly messages: Awaited<ReturnType<typeof convertToModelMessages>>;
+    readonly model: ReturnType<typeof wrapLanguageModel>;
+  },
+) =>
+  Effect.try({
+    try: () => {
+      const result = streamText({
+        model: input.model,
+        messages: input.messages,
+      });
+
+      return createUIMessageStreamResponse({
+        stream: toUIMessageStream({ stream: result.stream }),
+      });
+    },
+    catch: (cause) => new AiRequestError({ cause, operation: "model" }),
   });
 
 const logInterceptorError = async (error: unknown) => {
@@ -149,7 +170,11 @@ app.use("/*", async (c, next) => {
 });
 
 app.post("/ai", async (c) => {
-  const outcome = await runEffect(Effect.either(prepareAiRequest(c.req.raw)));
+  const outcome = await runEffect(
+    Effect.either(
+      prepareAiRequest(c.req.raw).pipe(Effect.flatMap(createAiResponse)),
+    ),
+  );
   if (outcome._tag === "Left") {
     await applicationRuntime.runPromise(
       Effect.logError(`AI request ${outcome.left.operation} failed: ${outcome.left.cause}`),
@@ -160,14 +185,7 @@ app.post("/ai", async (c) => {
     return c.json({ error: "AI service is temporarily unavailable" }, 503);
   }
 
-  const result = streamText({
-    model: outcome.right.model,
-    messages: outcome.right.messages,
-  });
-
-  return createUIMessageStreamResponse({
-    stream: toUIMessageStream({ stream: result.stream }),
-  });
+  return outcome.right;
 });
 
 app.get("/", (c) => {

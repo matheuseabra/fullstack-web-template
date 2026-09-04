@@ -11,20 +11,31 @@ export type CreateContextOptions = {
   runEffect: EffectRunner;
 };
 
-const lookupSession = (headers: Headers) =>
+const lookupSession = Effect.fn("Api.lookupSession")((headers: Headers) =>
   Effect.gen(function* () {
     const lookup = yield* SessionLookup;
     return yield* lookup.getSession(headers);
-  });
+  }),
+);
 
 export async function createContext({
   context,
   runEffect,
 }: CreateContextOptions) {
-  const session = await runForTransport(
-    runEffect,
-    lookupSession(context.req.raw.headers),
-  );
+  let session;
+  try {
+    session = await runForTransport(
+      runEffect,
+      lookupSession(context.req.raw.headers),
+    );
+  } catch (error) {
+    await runEffect(
+      Effect.logError(
+        `oRPC request failed: ${error instanceof Error ? error.message : String(error)}`,
+      ),
+    );
+    throw error;
+  }
   return {
     session,
     runEffect,

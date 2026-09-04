@@ -3,6 +3,7 @@ import { env } from "@web-stack-template/env/server";
 import { drizzle } from "drizzle-orm/libsql";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 import * as schema from "./schema";
 import { makeTodoRepository, TodoRepository } from "./todo-repository";
@@ -18,6 +19,11 @@ function makeDrizzleDatabase(client: Client) {
 
 export type DatabaseClient = ReturnType<typeof makeDrizzleDatabase>;
 
+export class DatabaseResourceError extends Schema.TaggedError<DatabaseResourceError>()(
+  "DatabaseResourceError",
+  { cause: Schema.Unknown },
+) {}
+
 export function makeDatabaseResource(): DatabaseResource {
   const client = createClient({
     url: env.DATABASE_URL,
@@ -32,8 +38,14 @@ export function createDb(): DatabaseClient {
   return makeDatabaseResource().database;
 }
 
+/** Compatibility export for consumers that still expect a raw Drizzle client. */
+export const db = createDb();
+
 const acquireDatabase = Effect.acquireRelease(
-  Effect.sync(makeDatabaseResource),
+  Effect.try({
+    try: makeDatabaseResource,
+    catch: (cause) => new DatabaseResourceError({ cause }),
+  }),
   ({ client }) => Effect.sync(() => client.close()),
 );
 

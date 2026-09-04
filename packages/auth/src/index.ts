@@ -1,5 +1,7 @@
 import { polar, checkout, portal } from "@polar-sh/better-auth";
 import {
+  db,
+  DatabaseResourceError,
   makeDatabaseResource,
   type DatabaseClient,
 } from "@web-stack-template/db";
@@ -36,7 +38,7 @@ export class AuthError extends Schema.TaggedError<AuthError>()(
   { cause: Schema.Unknown },
 ) {}
 
-export function createAuth(database: DatabaseClient) {
+export function createAuth(database: DatabaseClient = db) {
   return betterAuth({
     database: drizzleAdapter(database, {
       provider: "sqlite",
@@ -78,20 +80,27 @@ export function createAuth(database: DatabaseClient) {
   });
 }
 
+/** Compatibility export for consumers that still expect a raw Better Auth instance. */
+export const auth = createAuth(db);
+
 const acquireAuth = Effect.acquireRelease(
   Effect.try({
-    try: () => {
-      const resource = makeDatabaseResource();
-      return { auth: createAuth(resource.database), client: resource.client };
-    },
-    catch: (cause) => new AuthError({ cause }),
+    try: makeDatabaseResource,
+    catch: (cause) => new DatabaseResourceError({ cause }),
   }),
   ({ client }) => Effect.sync(() => client.close()),
+).pipe(
+  Effect.flatMap((resource) =>
+    Effect.try({
+      try: () => createAuth(resource.database),
+      catch: (cause) => new AuthError({ cause }),
+    }),
+  ),
 );
 
 /** Scoped Better Auth and request-session adapter used by the server runtime. */
 export const SessionLookupLive = Layer.provideMerge(
-  Layer.scoped(Auth, Effect.map(acquireAuth, ({ auth }) => auth)),
+  Layer.scoped(Auth, acquireAuth),
 )(
   Layer.effect(
     SessionLookup,

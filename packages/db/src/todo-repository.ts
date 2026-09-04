@@ -10,7 +10,9 @@ export type TodoRecord = typeof todo.$inferSelect;
 export type TodoCreateInput = Pick<typeof todo.$inferInsert, "text">;
 export type TodoToggleInput = { readonly id: number; readonly completed: boolean };
 export type TodoDeleteInput = { readonly id: number };
-export type TodoMutationResult = ResultSet;
+export type TodoMutationResult = {
+  readonly rowsAffected: number;
+};
 
 /** Minimal Drizzle surface needed by this repository adapter. */
 export interface TodoDatabasePort {
@@ -18,15 +20,15 @@ export interface TodoDatabasePort {
     readonly from: (table: typeof todo) => Promise<ReadonlyArray<TodoRecord>>;
   };
   readonly insert: (table: typeof todo) => {
-    readonly values: (input: TodoCreateInput) => Promise<TodoMutationResult>;
+    readonly values: (input: TodoCreateInput) => Promise<ResultSet>;
   };
   readonly update: (table: typeof todo) => {
     readonly set: (input: Pick<typeof todo.$inferInsert, "completed">) => {
-      readonly where: (condition: SQL<unknown>) => Promise<TodoMutationResult>;
+      readonly where: (condition: SQL<unknown>) => Promise<ResultSet>;
     };
   };
   readonly delete: (table: typeof todo) => {
-    readonly where: (condition: SQL<unknown>) => Promise<TodoMutationResult>;
+    readonly where: (condition: SQL<unknown>) => Promise<ResultSet>;
   };
 }
 
@@ -76,6 +78,10 @@ const withDatabaseError = <A>(
     catch: (cause) => new DatabaseError({ operation, cause }),
   });
 
+const toMutationResult = (result: ResultSet): TodoMutationResult => ({
+  rowsAffected: result.rowsAffected,
+});
+
 /** Creates the Drizzle-backed repository service for a supplied database. */
 export const makeTodoRepository = (
   database: TodoDatabasePort,
@@ -83,18 +89,21 @@ export const makeTodoRepository = (
   getAll: () =>
     withDatabaseError("todo.getAll", async () => database.select().from(todo)),
   create: (input) =>
-    withDatabaseError("todo.create", async () =>
-      database.insert(todo).values({ text: input.text }),
-    ),
+    withDatabaseError("todo.create", async () => {
+      const result = await database.insert(todo).values({ text: input.text });
+      return toMutationResult(result);
+    }),
   toggle: (input) =>
-    withDatabaseError("todo.toggle", async () =>
-      database
+    withDatabaseError("todo.toggle", async () => {
+      const result = await database
         .update(todo)
         .set({ completed: input.completed })
-        .where(eq(todo.id, input.id)),
-    ),
+        .where(eq(todo.id, input.id));
+      return toMutationResult(result);
+    }),
   delete: (input) =>
-    withDatabaseError("todo.delete", async () =>
-      database.delete(todo).where(eq(todo.id, input.id)),
-    ),
+    withDatabaseError("todo.delete", async () => {
+      const result = await database.delete(todo).where(eq(todo.id, input.id));
+      return toMutationResult(result);
+    }),
 });

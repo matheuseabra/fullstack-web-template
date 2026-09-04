@@ -1,11 +1,18 @@
 import { expect } from "vitest";
 import { describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import * as Ref from "effect/Ref";
 
 import {
   DatabaseError,
   TodoRepository,
+  type TodoCreateInput,
+  type TodoDeleteInput,
+  type TodoMutationResult,
+  type TodoRecord,
   type TodoRepositoryService,
+  type TodoToggleInput,
 } from "@web-stack-template/db/todo-repository";
 
 import { toTransportError } from "../effect-runner";
@@ -13,74 +20,78 @@ import { createTodo, deleteTodo, getTodos, toggleTodo } from "./todo";
 
 const unused = () => Effect.die("Unexpected repository operation");
 
-const makeRepository = (
-  overrides: Partial<TodoRepositoryService>,
-): TodoRepositoryService => ({
-  getAll: unused,
-  create: unused,
-  toggle: unused,
-  delete: unused,
-  ...overrides,
-});
-
 const mutationResult = {
-  columns: [],
-  columnTypes: [],
-  rows: [],
   rowsAffected: 1,
-  lastInsertRowid: undefined,
-  toJSON: () => ({}),
-};
+} satisfies TodoMutationResult;
+
+const makeInMemoryRepositoryLayer = (
+  initial: ReadonlyArray<TodoRecord>,
+) =>
+  Layer.effect(
+    TodoRepository,
+    Effect.gen(function* () {
+      const todos = yield* Ref.make([...initial]);
+
+      const create = (input: TodoCreateInput) =>
+        Ref.modify(todos, (current) => {
+          const nextTodo = {
+            id: current.length + 1,
+            text: input.text,
+            completed: false,
+          };
+          return [mutationResult, [...current, nextTodo]];
+        });
+
+      const toggle = (input: TodoToggleInput) =>
+        Ref.update(todos, (current) =>
+          current.map((todo) =>
+            todo.id === input.id
+              ? { ...todo, completed: input.completed }
+              : todo,
+          ),
+        ).pipe(Effect.as(mutationResult));
+
+      const remove = (input: TodoDeleteInput) =>
+        Ref.update(todos, (current) =>
+          current.filter((todo) => todo.id !== input.id),
+        ).pipe(Effect.as(mutationResult));
+
+      return {
+        getAll: () => Ref.get(todos),
+        create,
+        toggle,
+        delete: remove,
+      } satisfies TodoRepositoryService;
+    }),
+  );
 
 describe("todo application programs", () => {
   it.effect("runs a read through the injected repository", () => {
     const todos = [{ id: 1, text: "write tests", completed: false }];
-    const service = makeRepository({
-      getAll: () => Effect.succeed(todos),
-    });
 
     return Effect.gen(function* () {
-      const actual = yield* getTodos.pipe(
-        Effect.provideService(TodoRepository, service),
-      );
+      const actual = yield* getTodos;
       expect(actual).toEqual(todos);
-    });
+    }).pipe(Effect.provide(makeInMemoryRepositoryLayer(todos)));
   });
 
   it.effect("passes mutation input to the repository", () => {
-    const calls: Array<unknown> = [];
-    const service = makeRepository({
-      create: (input) => {
-        calls.push(["create", input]);
-        return Effect.succeed(mutationResult);
-      },
-      toggle: (input) => {
-        calls.push(["toggle", input]);
-        return Effect.succeed(mutationResult);
-      },
-      delete: (input) => {
-        calls.push(["delete", input]);
-        return Effect.succeed(mutationResult);
-      },
-    });
-
     return Effect.gen(function* () {
-      yield* createTodo({ text: "new" }).pipe(
-        Effect.provideService(TodoRepository, service),
-      );
-      yield* toggleTodo({ id: 1, completed: true }).pipe(
-        Effect.provideService(TodoRepository, service),
-      );
-      yield* deleteTodo({ id: 1 }).pipe(
-        Effect.provideService(TodoRepository, service),
-      );
+      yield* createTodo({ text: "new" });
+      yield* toggleTodo({ id: 1, completed: true });
+      yield* deleteTodo({ id: 1 });
+      const actual = yield* getTodos;
 
-      expect(calls).toEqual([
-        ["create", { text: "new" }],
-        ["toggle", { id: 1, completed: true }],
-        ["delete", { id: 1 }],
+      expect(actual).toEqual([
+        { id: 2, text: "new", completed: false },
       ]);
-    });
+    }).pipe(
+      Effect.provide(
+        makeInMemoryRepositoryLayer([
+          { id: 1, text: "existing", completed: false },
+        ]),
+      ),
+    );
   });
 
   it.effect("propagates tagged repository failures", () => {
@@ -89,14 +100,15 @@ describe("todo application programs", () => {
       operation: "todo.getAll",
       cause,
     });
-    const service = makeRepository({
+    const service: TodoRepositoryService = {
       getAll: () => Effect.fail(failure),
-    });
+      create: unused,
+      toggle: unused,
+      delete: unused,
+    };
 
     return Effect.gen(function* () {
-      const outcome = yield* Effect.exit(
-        getTodos.pipe(Effect.provideService(TodoRepository, service)),
-      );
+      const outcome = yield* Effect.exit(getTodos);
       expect(outcome._tag).toBe("Failure");
       if (outcome._tag === "Failure") {
         expect(outcome.cause._tag).toBe("Fail");
@@ -104,7 +116,7 @@ describe("todo application programs", () => {
           expect(outcome.cause.error).toEqual(failure);
         }
       }
-    });
+    }).pipe(Effect.provide(Layer.succeed(TodoRepository, service)));
   });
 
   it("maps tagged repository failures to a stable transport error", () => {
