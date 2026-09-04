@@ -10,7 +10,7 @@
     }
   },
   "scripts": {
-    "test": "bun test src/programs/todo.test.ts",
+    "test": "vitest run src/programs/todo.test.ts",
     "check-types": "tsc -b"
   },
   "dependencies": {
@@ -26,8 +26,10 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@web-stack-template/config": "workspace:*",
     "hono": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

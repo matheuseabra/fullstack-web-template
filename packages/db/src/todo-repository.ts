@@ -1,10 +1,9 @@
 import * as Context from "effect/Context";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
 import type { ResultSet } from "@libsql/client";
-import { eq } from "drizzle-orm";
+import { eq, type SQL } from "drizzle-orm";
 
-import type { DatabaseClient } from "./index";
 import { todo } from "./schema/todo";
 
 export type TodoRecord = typeof todo.$inferSelect;
@@ -13,6 +12,24 @@ export type TodoToggleInput = { readonly id: number; readonly completed: boolean
 export type TodoDeleteInput = { readonly id: number };
 export type TodoMutationResult = ResultSet;
 
+/** Minimal Drizzle surface needed by this repository adapter. */
+export interface TodoDatabasePort {
+  readonly select: () => {
+    readonly from: (table: typeof todo) => Promise<ReadonlyArray<TodoRecord>>;
+  };
+  readonly insert: (table: typeof todo) => {
+    readonly values: (input: TodoCreateInput) => Promise<TodoMutationResult>;
+  };
+  readonly update: (table: typeof todo) => {
+    readonly set: (input: Pick<typeof todo.$inferInsert, "completed">) => {
+      readonly where: (condition: SQL<unknown>) => Promise<TodoMutationResult>;
+    };
+  };
+  readonly delete: (table: typeof todo) => {
+    readonly where: (condition: SQL<unknown>) => Promise<TodoMutationResult>;
+  };
+}
+
 export type DatabaseOperation =
   | "todo.getAll"
   | "todo.create"
@@ -20,10 +37,18 @@ export type DatabaseOperation =
   | "todo.delete";
 
 /** A stable, expected failure for a persistence operation. */
-export class DatabaseError extends Data.TaggedError("DatabaseError")<{
-  readonly operation: DatabaseOperation;
-  readonly cause: unknown;
-}> {}
+export class DatabaseError extends Schema.TaggedError<DatabaseError>()(
+  "DatabaseError",
+  {
+    operation: Schema.Literal(
+      "todo.getAll",
+      "todo.create",
+      "todo.toggle",
+      "todo.delete",
+    ),
+    cause: Schema.Unknown,
+  },
+) {}
 
 export interface TodoRepositoryService {
   readonly getAll: () => Effect.Effect<ReadonlyArray<TodoRecord>, DatabaseError>;
@@ -53,7 +78,7 @@ const withDatabaseError = <A>(
 
 /** Creates the Drizzle-backed repository service for a supplied database. */
 export const makeTodoRepository = (
-  database: DatabaseClient,
+  database: TodoDatabasePort,
 ): TodoRepositoryService => ({
   getAll: () =>
     withDatabaseError("todo.getAll", async () => database.select().from(todo)),

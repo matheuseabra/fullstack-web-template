@@ -1,9 +1,9 @@
 import { ORPCError } from "@orpc/server";
-import { SessionLookup, SessionLookupError } from "@web-stack-template/auth/session-lookup";
+import { Auth, SessionLookup, SessionLookupError } from "@web-stack-template/auth/session-lookup";
 import { DatabaseError, TodoRepository } from "@web-stack-template/db/todo-repository";
 import * as Effect from "effect/Effect";
 
-export type ApplicationServices = SessionLookup | TodoRepository;
+export type ApplicationServices = Auth | SessionLookup | TodoRepository;
 
 /** The only execution capability exposed to API adapters. */
 export type EffectRunner = <A, E>(effect: Effect.Effect<A, E, ApplicationServices>) => Promise<A>;

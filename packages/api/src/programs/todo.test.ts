@@ -1,24 +1,15 @@
-import { describe, expect, it } from "bun:test";
+import { expect } from "vitest";
+import { describe, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
 
 import {
   DatabaseError,
   TodoRepository,
-  type TodoMutationResult,
   type TodoRepositoryService,
 } from "@web-stack-template/db/todo-repository";
 
-import { type EffectRunner, runForTransport, toTransportError } from "../effect-runner";
-import { createTodo, getTodos, toggleTodo } from "./todo";
-
-const makeRunner = (service: TodoRepositoryService): EffectRunner =>
-  (<A, E>(effect: Parameters<EffectRunner>[0]) =>
-    Effect.runPromise(
-      effect.pipe(
-        Effect.provide(Layer.succeed(TodoRepository, service)),
-      ) as Effect.Effect<A, E, never>,
-    ));
+import { toTransportError } from "../effect-runner";
+import { createTodo, deleteTodo, getTodos, toggleTodo } from "./todo";
 
 const unused = () => Effect.die("Unexpected repository operation");
 
@@ -32,21 +23,31 @@ const makeRepository = (
   ...overrides,
 });
 
-const mutationResult = { rowsAffected: 1 } as TodoMutationResult;
+const mutationResult = {
+  columns: [],
+  columnTypes: [],
+  rows: [],
+  rowsAffected: 1,
+  lastInsertRowid: undefined,
+  toJSON: () => ({}),
+};
 
 describe("todo application programs", () => {
-  it("runs a read through the injected repository", async () => {
+  it.effect("runs a read through the injected repository", () => {
     const todos = [{ id: 1, text: "write tests", completed: false }];
     const service = makeRepository({
       getAll: () => Effect.succeed(todos),
     });
 
-    await expect(runForTransport(makeRunner(service), getTodos)).resolves.toEqual(
-      todos,
-    );
+    return Effect.gen(function* () {
+      const actual = yield* getTodos.pipe(
+        Effect.provideService(TodoRepository, service),
+      );
+      expect(actual).toEqual(todos);
+    });
   });
 
-  it("passes mutation input to the repository", async () => {
+  it.effect("passes mutation input to the repository", () => {
     const calls: Array<unknown> = [];
     const service = makeRepository({
       create: (input) => {
@@ -57,41 +58,65 @@ describe("todo application programs", () => {
         calls.push(["toggle", input]);
         return Effect.succeed(mutationResult);
       },
+      delete: (input) => {
+        calls.push(["delete", input]);
+        return Effect.succeed(mutationResult);
+      },
     });
 
-    await runForTransport(makeRunner(service), createTodo({ text: "new" }));
-    await runForTransport(
-      makeRunner(service),
-      toggleTodo({ id: 1, completed: true }),
-    );
+    return Effect.gen(function* () {
+      yield* createTodo({ text: "new" }).pipe(
+        Effect.provideService(TodoRepository, service),
+      );
+      yield* toggleTodo({ id: 1, completed: true }).pipe(
+        Effect.provideService(TodoRepository, service),
+      );
+      yield* deleteTodo({ id: 1 }).pipe(
+        Effect.provideService(TodoRepository, service),
+      );
 
-    expect(calls).toEqual([
-      ["create", { text: "new" }],
-      ["toggle", { id: 1, completed: true }],
-    ]);
+      expect(calls).toEqual([
+        ["create", { text: "new" }],
+        ["toggle", { id: 1, completed: true }],
+        ["delete", { id: 1 }],
+      ]);
+    });
   });
 
-  it("maps tagged repository failures to a stable transport error", async () => {
-    const failure = new Error("database unavailable");
+  it.effect("propagates tagged repository failures", () => {
+    const cause = new Error("database unavailable");
+    const failure = new DatabaseError({
+      operation: "todo.getAll",
+      cause,
+    });
     const service = makeRepository({
-      getAll: () =>
-        Effect.fail(
-          new DatabaseError({
-            operation: "todo.getAll",
-            cause: failure,
-          }),
-        ),
+      getAll: () => Effect.fail(failure),
     });
 
-    try {
-      await runForTransport(makeRunner(service), getTodos);
-      throw new Error("expected the program to fail");
-    } catch (error) {
-      expect((error as { code: string }).code).toBe("INTERNAL_SERVER_ERROR");
-      expect((error as { message: string }).message).toBe(
-        "Todo storage is temporarily unavailable",
+    return Effect.gen(function* () {
+      const outcome = yield* Effect.exit(
+        getTodos.pipe(Effect.provideService(TodoRepository, service)),
       );
-    }
+      expect(outcome._tag).toBe("Failure");
+      if (outcome._tag === "Failure") {
+        expect(outcome.cause._tag).toBe("Fail");
+        if (outcome.cause._tag === "Fail") {
+          expect(outcome.cause.error).toEqual(failure);
+        }
+      }
+    });
+  });
+
+  it("maps tagged repository failures to a stable transport error", () => {
+    const error = toTransportError(
+      new DatabaseError({
+        operation: "todo.getAll",
+        cause: new Error("database unavailable"),
+      }),
+    );
+
+    expect(error.code).toBe("INTERNAL_SERVER_ERROR");
+    expect(error.message).toBe("Todo storage is temporarily unavailable");
     expect(toTransportError({ _tag: "unknown" }).code).toBe(
       "INTERNAL_SERVER_ERROR",
     );

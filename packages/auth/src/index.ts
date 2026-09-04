@@ -1,33 +1,44 @@
 import { polar, checkout, portal } from "@polar-sh/better-auth";
-import { createDb } from "@web-stack-template/db";
+import {
+  makeDatabaseResource,
+  type DatabaseClient,
+} from "@web-stack-template/db";
 import * as schema from "@web-stack-template/db/schema/auth";
 import { env } from "@web-stack-template/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 
 import { polarClient } from "./lib/payments";
 import {
+  Auth,
   makeSessionLookup,
   SessionLookup,
 } from "./session-lookup";
 
 export {
+  Auth,
   makeSessionLookup,
   SessionLookup,
   SessionLookupError,
 } from "./session-lookup";
 export type {
+  AuthService,
   SessionLookupAuth,
   SessionLookupResult,
   SessionLookupService,
 } from "./session-lookup";
 
-export function createAuth() {
-  const db = createDb();
+export class AuthError extends Schema.TaggedError<AuthError>()(
+  "AuthError",
+  { cause: Schema.Unknown },
+) {}
 
+export function createAuth(database: DatabaseClient) {
   return betterAuth({
-    database: drizzleAdapter(db, {
+    database: drizzleAdapter(database, {
       provider: "sqlite",
 
       schema: schema,
@@ -67,10 +78,26 @@ export function createAuth() {
   });
 }
 
-export const auth = createAuth();
+const acquireAuth = Effect.acquireRelease(
+  Effect.try({
+    try: () => {
+      const resource = makeDatabaseResource();
+      return { auth: createAuth(resource.database), client: resource.client };
+    },
+    catch: (cause) => new AuthError({ cause }),
+  }),
+  ({ client }) => Effect.sync(() => client.close()),
+);
 
-/** The production session service; tests can replace this Layer. */
-export const SessionLookupLive = Layer.succeed(
-  SessionLookup,
-  makeSessionLookup(auth),
+/** Scoped Better Auth and request-session adapter used by the server runtime. */
+export const SessionLookupLive = Layer.provideMerge(
+  Layer.scoped(Auth, Effect.map(acquireAuth, ({ auth }) => auth)),
+)(
+  Layer.effect(
+    SessionLookup,
+    Effect.gen(function* () {
+      const auth = yield* Auth;
+      return makeSessionLookup(auth);
+    }),
+  ),
 );

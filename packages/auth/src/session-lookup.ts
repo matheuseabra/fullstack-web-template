@@ -1,15 +1,16 @@
 import * as Context from "effect/Context";
-import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { Auth } from "better-auth";
+import * as Schema from "effect/Schema";
+import type { Auth as BetterAuth } from "better-auth";
 
 /** The value returned by Better Auth's server-side session endpoint. */
-export type SessionLookupResult = Awaited<ReturnType<Auth["api"]["getSession"]>>;
+export type SessionLookupResult = Awaited<ReturnType<BetterAuth["api"]["getSession"]>>;
 
 /** A stable, expected failure for a Better Auth session lookup. */
-export class SessionLookupError extends Data.TaggedError("SessionLookupError")<{
-  readonly cause: unknown;
-}> {}
+export class SessionLookupError extends Schema.TaggedError<SessionLookupError>()(
+  "SessionLookupError",
+  { cause: Schema.Unknown },
+) {}
 
 export interface SessionLookupService {
   readonly getSession: (
@@ -34,6 +35,16 @@ export interface SessionLookupAuth {
     }) => Promise<SessionLookupResult>;
   };
 }
+
+/** Better Auth instance used by the framework adapter at the HTTP edge. */
+export interface AuthService extends SessionLookupAuth {
+  readonly handler: (request: Request) => Response | Promise<Response>;
+}
+
+export class Auth extends Context.Tag("@web-stack-template/auth/Auth")<
+  Auth,
+  AuthService
+>() {}
 
 export const makeSessionLookup = (
   auth: SessionLookupAuth,

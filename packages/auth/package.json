@@ -11,7 +11,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
-    "test": "bun test src/session-lookup.test.ts"
+    "test": "vitest run src/session-lookup.test.ts"
   },
   "dependencies": {
     "@polar-sh/better-auth": "catalog:",
@@ -24,7 +24,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@web-stack-template/config": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
