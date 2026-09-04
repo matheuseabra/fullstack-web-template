@@ -8,9 +8,9 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { createContext } from "@web-stack-template/api/context";
 import type { ApplicationServices } from "@web-stack-template/api/effect-runner";
 import { appRouter } from "@web-stack-template/api/routers/index";
-import { SessionLookupLive } from "@web-stack-template/auth";
+import { SessionLookupLive } from "@web-stack-template/auth/runtime";
 import { Auth } from "@web-stack-template/auth/session-lookup";
-import { TodoRepositoryLive } from "@web-stack-template/db";
+import { TodoRepositoryLive } from "@web-stack-template/db/runtime";
 import { env } from "@web-stack-template/env/server";
 import {
   createUIMessageStreamResponse,
