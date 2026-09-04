@@ -189,4 +189,3 @@ introduced
   operations proven idempotent.
 - Validate with typecheck/build plus focused service and adapter tests; run a
   real todos/auth smoke test because transport error mapping is boundary code.
-

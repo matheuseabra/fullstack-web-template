@@ -38,6 +38,8 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "lint": "oxlint apps packages scripts --deny-warnings",
+    "test": "turbo run test",
     "check-types": "turbo run check-types",
     "dev:web": "turbo run dev -F web --",
     "dev:server": "turbo run dev -F server --",
@@ -67,6 +69,7 @@
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
     "@web-stack-template/config": "workspace:*",
+    "oxlint": "^1.81.0",
     "tsx": "^4.23.1",
     "turbo": "^2.10.12",
     "typescript": "catalog:",
