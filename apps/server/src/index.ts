@@ -36,10 +36,6 @@ const applicationRuntime = ManagedRuntime.make(applicationLayer);
 const runEffect = <A, E>(effect: Effect.Effect<A, E, ApplicationServices>) =>
   applicationRuntime.runPromise(effect);
 
-const getAuth = Effect.gen(function* () {
-  return yield* Auth;
-});
-
 class AiRequestError extends Schema.TaggedError<AiRequestError>()(
   "AiRequestError",
   {
@@ -82,7 +78,7 @@ const prepareAiRequest = Effect.fn("Server.prepareAiRequest")((request: Request)
   }),
 );
 
-const createAiResponse = (
+const createAiResponse = Effect.fn("Server.createAiResponse")((
   input: {
     readonly messages: Awaited<ReturnType<typeof convertToModelMessages>>;
     readonly model: ReturnType<typeof wrapLanguageModel>;
@@ -100,7 +96,8 @@ const createAiResponse = (
       });
     },
     catch: (cause) => new AiRequestError({ cause, operation: "model" }),
-  });
+  })
+);
 
 const logInterceptorError = async (error: unknown) => {
   await applicationRuntime.runPromise(
@@ -124,7 +121,7 @@ app.use(
 );
 
 app.on(["POST", "GET"], "/api/auth/*", async (c) => {
-  const auth = await runEffect(getAuth);
+  const auth = await runEffect(Auth);
   return auth.handler(c.req.raw);
 });
 
