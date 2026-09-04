@@ -4,8 +4,24 @@ import * as schema from "@web-stack-template/db/schema/auth";
 import { env } from "@web-stack-template/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import * as Layer from "effect/Layer";
 
 import { polarClient } from "./lib/payments";
+import {
+  makeSessionLookup,
+  SessionLookup,
+} from "./session-lookup";
+
+export {
+  makeSessionLookup,
+  SessionLookup,
+  SessionLookupError,
+} from "./session-lookup";
+export type {
+  SessionLookupAuth,
+  SessionLookupResult,
+  SessionLookupService,
+} from "./session-lookup";
 
 export function createAuth() {
   const db = createDb();
@@ -52,3 +68,9 @@ export function createAuth() {
 }
 
 export const auth = createAuth();
+
+/** The production session service; tests can replace this Layer. */
+export const SessionLookupLive = Layer.succeed(
+  SessionLookup,
+  makeSessionLookup(auth),
+);
