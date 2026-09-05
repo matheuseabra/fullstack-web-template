@@ -7,10 +7,8 @@ import { orpc } from "@/utils/orpc";
 
 export default function Dashboard({
   customerState,
-  session,
 }: {
   customerState: ReturnType<typeof authClient.customer.state>;
-  session: typeof authClient.$Infer.Session;
 }) {
   const privateData = useQuery(orpc.privateData.queryOptions());
 

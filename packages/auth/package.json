@@ -9,7 +9,10 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run src/session-lookup.test.ts"
+  },
   "dependencies": {
     "@polar-sh/better-auth": "catalog:",
     "@polar-sh/sdk": "^0.47.0",
@@ -17,10 +20,13 @@
     "@web-stack-template/env": "workspace:*",
     "better-auth": "catalog:",
     "dotenv": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@web-stack-template/config": "workspace:*",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

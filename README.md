@@ -10,6 +10,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Shared UI package** - shadcn/ui primitives live in `packages/ui`
 - **Hono** - Lightweight, performant server framework
 - **oRPC** - End-to-end type-safe APIs with OpenAPI integration
+- **Effect** - Typed backend workflows, dependency layers, errors, and observability
 - **Bun** - Runtime environment
 - **Drizzle** - TypeScript-first ORM
 - **SQLite/Turso** - Database engine
@@ -50,6 +51,28 @@ bun run dev
 
 Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
 The API is running at [http://localhost:3000](http://localhost:3000).
+
+## Effect architecture
+
+Effect is the backend execution model while Hono, oRPC, Drizzle, and Better Auth
+remain framework adapters:
+
+- Domain operations are lazy `Effect` programs with explicit requirements and
+  typed expected errors.
+- `TodoRepository` and `SessionLookup` expose small interfaces through
+  `Context.Tag`; their production adapters are assembled with `Layer`.
+- The server creates one long-lived `ManagedRuntime`. Hono and oRPC cross to
+  Promises only at this outer transport seam.
+- Tests provide in-memory Layers through the same interfaces, so they do not
+  require a live database or authentication provider.
+
+When adding backend behavior, keep third-party calls in a live adapter, map
+expected failures to a tagged error with `Effect.tryPromise`, and leave the
+program unexecuted until a server transport handler supplies the runtime.
+
+See [the migration plan](docs/effect-migration-plan.md) and
+[the supporting research](docs/effect-migration-research.md) for the design and
+primary-source references.
 
 ## UI Customization
 
@@ -126,6 +149,8 @@ web-stack-template/
 
 - `bun run dev`: Start all applications in development mode
 - `bun run build`: Build all applications
+- `bun run lint`: Run Oxlint, including the complexity budget
+- `bun run test`: Run package tests through Turborepo
 - `bun run dev:web`: Start only the web application
 - `bun run dev:server`: Start only the server
 - `bun run check-types`: Check TypeScript types across all apps

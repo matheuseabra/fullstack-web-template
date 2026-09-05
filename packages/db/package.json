@@ -10,6 +10,8 @@
     }
   },
   "scripts": {
+    "check-types": "tsc --noEmit",
+    "test": "vitest run src/todo-repository.test.ts",
     "db:local": "turso dev --db-file local.db",
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
@@ -22,12 +24,15 @@
     "@web-stack-template/env": "workspace:*",
     "dotenv": "catalog:",
     "drizzle-orm": "catalog:",
+    "effect": "catalog:",
     "libsql": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@web-stack-template/config": "workspace:*",
     "drizzle-kit": "^0.31.10",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

@@ -22,6 +22,7 @@
     "ai": "catalog:",
     "better-auth": "catalog:",
     "dotenv": "catalog:",
+    "effect": "catalog:",
     "hono": "catalog:",
     "libsql": "catalog:",
     "zod": "catalog:"

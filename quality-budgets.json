@@ -1,0 +1,15 @@
+{
+  "complexity": {
+    "max": 12,
+    "variant": "classic"
+  },
+  "file": {
+    "maxLines": 300,
+    "lineCount": "non-empty"
+  },
+  "bytes": {
+    "javascript": 25000,
+    "css": 25000
+  },
+  "exclude": []
+}
