@@ -1,16 +1,20 @@
-import { createClient } from "@libsql/client";
-import { env } from "@web-stack-template/env/server";
-import { drizzle } from "drizzle-orm/libsql";
+import { makeDatabaseResource } from "./runtime";
+import type { DatabaseClient } from "./runtime";
 
-import * as schema from "./schema";
+export type {
+  DatabaseResource,
+  DatabaseResourceError,
+} from "./runtime";
+export { makeDatabaseResource, TodoRepositoryLive } from "./runtime";
 
-export function createDb() {
-  const client = createClient({
-    url: env.DATABASE_URL,
-    authToken: env.DATABASE_AUTH_TOKEN,
-  });
-
-  return drizzle({ client, schema });
+/** Compatibility factory for consumers that still need a Drizzle client. */
+export function createDb(): DatabaseClient {
+  return makeDatabaseResource().database;
 }
 
+/** Compatibility singleton for consumers that still expect a raw Drizzle client. */
 export const db = createDb();
+
+export type { DatabaseClient } from "./runtime";
+export * from "./todo-repository";
+export * from "./schema";

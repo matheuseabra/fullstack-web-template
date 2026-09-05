@@ -1,54 +1,30 @@
-import { polar, checkout, portal } from "@polar-sh/better-auth";
-import { createDb } from "@web-stack-template/db";
-import * as schema from "@web-stack-template/db/schema/auth";
-import { env } from "@web-stack-template/env/server";
-import { betterAuth } from "better-auth";
-import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import {
+  db,
+  type DatabaseClient,
+} from "@web-stack-template/db";
 
-import { polarClient } from "./lib/payments";
+import {
+  createAuth as createRuntimeAuth,
+} from "./runtime";
 
-export function createAuth() {
-  const db = createDb();
+export {
+  Auth,
+  makeSessionLookup,
+  SessionLookup,
+  SessionLookupError,
+} from "./session-lookup";
+export type {
+  AuthService,
+  SessionLookupAuth,
+  SessionLookupResult,
+  SessionLookupService,
+} from "./session-lookup";
+export { AuthError, SessionLookupLive } from "./runtime";
 
-  return betterAuth({
-    database: drizzleAdapter(db, {
-      provider: "sqlite",
-
-      schema: schema,
-    }),
-    trustedOrigins: [env.CORS_ORIGIN],
-    emailAndPassword: {
-      enabled: true,
-    },
-    secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
-    advanced: {
-      defaultCookieAttributes: {
-        sameSite: "none",
-        secure: true,
-        httpOnly: true,
-      },
-    },
-    plugins: [
-      polar({
-        client: polarClient,
-        createCustomerOnSignUp: true,
-        use: [
-          checkout({
-            products: [
-              {
-                productId: "your-product-id",
-                slug: "pro",
-              },
-            ],
-            successUrl: env.POLAR_SUCCESS_URL,
-            authenticatedUsersOnly: true,
-          }),
-          portal(),
-        ],
-      }),
-    ],
-  });
+/** Compatibility factory retaining the historical zero-argument API. */
+export function createAuth(database: DatabaseClient = db) {
+  return createRuntimeAuth(database);
 }
 
-export const auth = createAuth();
+/** Compatibility singleton; production server code imports the runtime subpath. */
+export const auth = createAuth(db);

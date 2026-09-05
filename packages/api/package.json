@@ -9,7 +9,10 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "test": "vitest run src/programs/todo.test.ts",
+    "check-types": "tsc -b"
+  },
   "dependencies": {
     "@orpc/client": "catalog:",
     "@orpc/openapi": "catalog:",
@@ -19,12 +22,14 @@
     "@web-stack-template/db": "workspace:*",
     "@web-stack-template/env": "workspace:*",
     "dotenv": "catalog:",
-    "drizzle-orm": "catalog:",
+    "effect": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@effect/vitest": "catalog:",
     "@web-stack-template/config": "workspace:*",
     "hono": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }

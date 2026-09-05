@@ -1,30 +1,34 @@
-import { db } from "@web-stack-template/db";
-import { todo } from "@web-stack-template/db/schema/todo";
-import { eq } from "drizzle-orm";
 import z from "zod";
 
+import {
+  createTodo,
+  deleteTodo,
+  getTodos,
+  toggleTodo,
+} from "../programs/todo";
+import { runForTransport } from "../effect-runner";
 import { publicProcedure } from "../index";
 
 export const todoRouter = {
-  getAll: publicProcedure.handler(async () => {
-    return await db.select().from(todo);
-  }),
+  getAll: publicProcedure.handler(({ context }) =>
+    runForTransport(context.runEffect, getTodos),
+  ),
 
   create: publicProcedure
     .input(z.object({ text: z.string().min(1) }))
-    .handler(async ({ input }) => {
-      return await db.insert(todo).values({
-        text: input.text,
-      });
-    }),
+    .handler(({ context, input }) =>
+      runForTransport(context.runEffect, createTodo(input)),
+    ),
 
   toggle: publicProcedure
     .input(z.object({ id: z.number(), completed: z.boolean() }))
-    .handler(async ({ input }) => {
-      return await db.update(todo).set({ completed: input.completed }).where(eq(todo.id, input.id));
-    }),
+    .handler(({ context, input }) =>
+      runForTransport(context.runEffect, toggleTodo(input)),
+    ),
 
-  delete: publicProcedure.input(z.object({ id: z.number() })).handler(async ({ input }) => {
-    return await db.delete(todo).where(eq(todo.id, input.id));
-  }),
+  delete: publicProcedure
+    .input(z.object({ id: z.number() }))
+    .handler(({ context, input }) =>
+      runForTransport(context.runEffect, deleteTodo(input)),
+    ),
 };
