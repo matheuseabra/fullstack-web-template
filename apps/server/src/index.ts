@@ -1,5 +1,5 @@
 import { devToolsMiddleware } from "@ai-sdk/devtools";
-import { createOpenAI } from "@ai-sdk/openai";
+import { google } from "@ai-sdk/google";
 import { OpenAPIHandler } from "@orpc/openapi/fetch";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
 import { onError } from "@orpc/server";
@@ -33,8 +33,6 @@ const applicationLayer = Layer.merge(TodoRepositoryLive, SessionLookupLive);
 /** The one live runtime for all API and server Effect programs. */
 const applicationRuntime = ManagedRuntime.make(applicationLayer);
 
-const openai = createOpenAI();
-
 const runEffect = <A, E>(effect: Effect.Effect<A, E, ApplicationServices>) =>
   applicationRuntime.runPromise(effect);
 
@@ -66,7 +64,7 @@ const prepareAiRequest = Effect.fn("Server.prepareAiRequest")((request: Request)
     const model = yield* Effect.try({
       try: () =>
         wrapLanguageModel({
-          model: openai.responses("gpt-6-astra"),
+          model: google("gemini-2.5-flash"),
           middleware: devToolsMiddleware(),
         }),
       catch: (cause) => new AiRequestError({ cause, operation: "model" }),

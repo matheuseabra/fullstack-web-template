@@ -37,9 +37,6 @@ bun run db:local
 
 2. Update your `.env` file in the `apps/server` directory with the appropriate connection details if needed.
 
-The AI chat endpoint uses OpenAI's GPT-6 Astra model. Set `OPENAI_API_KEY` in
-`apps/server/.env` before starting the server.
-
 3. Apply the schema to your database:
 
 ```bash
