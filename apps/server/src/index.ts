@@ -33,7 +33,7 @@ const applicationLayer = Layer.merge(TodoRepositoryLive, SessionLookupLive);
 /** The one live runtime for all API and server Effect programs. */
 const applicationRuntime = ManagedRuntime.make(applicationLayer);
 
-const openai = createOpenAI();
+const openai = createOpenAI({ apiKey: env.OPENAI_API_KEY });
 
 const runEffect = <A, E>(effect: Effect.Effect<A, E, ApplicationServices>) =>
   applicationRuntime.runPromise(effect);
